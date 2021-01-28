@@ -1,0 +1,29 @@
+{
+    "name": "auto-release",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "build": "tsc && ncc build lib/index.js -o dist"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jardenliu/auto-release.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/jardenliu/auto-release/issues"
+    },
+    "homepage": "https://github.com/jardenliu/auto-release#readme",
+    "dependencies": {
+        "@actions/core": "^1.2.6",
+        "@actions/github": "^4.0.0"
+    },
+    "devDependencies": {
+        "@vercel/ncc": "^0.27.0",
+        "typescript": "^4.1.3"
+    }
+}

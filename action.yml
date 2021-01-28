@@ -1,0 +1,32 @@
+name: jardenliu/auto-release
+description: Github Action for release auto creation
+inputs:
+    token:
+        description: Github Token
+        default: ${{ github.token }}
+    name:
+        description: release name
+        required: true
+    code:
+        description: release code
+        required: true
+    body:
+        description: release body context
+        required: false
+        default: ''
+    prerelease:
+        description: set release is prerelese or not
+        required: false
+        default: false
+    recreate:
+        description: recreate or not
+        required: false
+        default: false
+    assets:
+        description: recreate assets
+        default: ''
+        required: false
+
+runs:
+    using: 'node12'
+    main: 'dist/index.js'
