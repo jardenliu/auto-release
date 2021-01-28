@@ -3,12 +3,21 @@ module.exports =
 /******/ 	var __webpack_modules__ = ({
 
 /***/ 8:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ (function(__unused_webpack_module, exports) {
 
 "use strict";
 
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getAssetsFromInput = void 0;
+exports.retryOnFailed = exports.getAssetsFromInput = void 0;
 const getAssetsFromInput = (input = '') => {
     return input.split(' ').map(asset => {
         const [source, target, mineType] = asset.split(':');
@@ -20,6 +29,19 @@ const getAssetsFromInput = (input = '') => {
     });
 };
 exports.getAssetsFromInput = getAssetsFromInput;
+const retryOnFailed = (asyncFunc, maxTries = 3) => __awaiter(void 0, void 0, void 0, function* () {
+    if (maxTries < 1) {
+        throw `Retried ${maxTries} failed always. aborting`;
+    }
+    try {
+        return asyncFunc();
+    }
+    catch (e) {
+        console.log(e);
+        return exports.retryOnFailed(asyncFunc, --maxTries);
+    }
+});
+exports.retryOnFailed = retryOnFailed;
 
 
 /***/ }),
@@ -61,23 +83,140 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(186));
 const github = __importStar(__nccwpck_require__(438));
 const helpers_1 = __nccwpck_require__(8);
+const release_1 = __nccwpck_require__(878);
 const TOKEN = core.getInput('token');
 const octoKit = github.getOctokit(TOKEN);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         const name = core.getInput('name');
-        console.log('🚀 ~ file: index.ts ~ line 11 ~ run ~ name', name);
         const code = core.getInput('code');
-        console.log('🚀 ~ file: index.ts ~ line 13 ~ run ~ code', code);
+        const body = core.getInput('body');
         const prerelease = core.getInput('prerelease') === 'true';
-        console.log('🚀 ~ file: index.ts ~ line 15 ~ run ~ prerelease', prerelease);
         const recreate = core.getInput('recreate') === 'true';
-        console.log('🚀 ~ file: index.ts ~ line 17 ~ run ~ recreate', recreate);
         const assets = helpers_1.getAssetsFromInput(core.getInput('assets'));
-        console.log('🚀 ~ file: index.ts ~ line 19 ~ run ~ assets', assets);
+        if (recreate) {
+            yield release_1.deleteReleaseIfExists(octoKit, code);
+        }
+        let release = yield release_1.createRelease(octoKit, {
+            name,
+            code,
+            body,
+            prerelease
+        });
+        for (let i = 0; i < assets.length; i++) {
+            const asset = assets[i];
+            yield release_1.uploadReleaseAsset(octoKit, Object.assign(Object.assign({}, asset), { url: release.upload_url }));
+        }
+        core.setOutput('release', release);
     });
 }
 run();
+
+
+/***/ }),
+
+/***/ 878:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.uploadReleaseAsset = exports.createRelease = exports.deleteReleaseIfExists = exports.deleteTagRef = exports.deleteRelease = exports.getRelease = void 0;
+const github = __importStar(__nccwpck_require__(438));
+const fs_1 = __importDefault(__nccwpck_require__(747));
+const helpers_1 = __nccwpck_require__(8);
+const getRelease = (kit, code) => __awaiter(void 0, void 0, void 0, function* () {
+    let release = undefined;
+    try {
+        let res = yield kit.repos.getReleaseByTag(Object.assign(Object.assign({}, github.context.repo), { tag: code }));
+        release = res.data;
+    }
+    catch (error) {
+        console.log(`Release ${code} not found..`);
+    }
+    return release;
+});
+exports.getRelease = getRelease;
+const deleteRelease = (kit, id) => __awaiter(void 0, void 0, void 0, function* () {
+    const delRelease = () => __awaiter(void 0, void 0, void 0, function* () {
+        kit.repos.deleteRelease(Object.assign(Object.assign({}, github.context.repo), { release_id: id }));
+    });
+    yield helpers_1.retryOnFailed(delRelease);
+});
+exports.deleteRelease = deleteRelease;
+const deleteTagRef = (kit, code) => __awaiter(void 0, void 0, void 0, function* () {
+    const tagRef = `tags/${code}`;
+    const deleteTagRef = () => __awaiter(void 0, void 0, void 0, function* () {
+        kit.git.deleteRef(Object.assign(Object.assign({}, github.context.repo), { ref: tagRef }));
+    });
+    yield helpers_1.retryOnFailed(deleteTagRef);
+});
+exports.deleteTagRef = deleteTagRef;
+const deleteReleaseIfExists = (kit, code) => __awaiter(void 0, void 0, void 0, function* () {
+    const release = yield exports.getRelease(kit, code);
+    if (!release)
+        return;
+    console.log(`release "${release.name}" is exist, removing.. `);
+    yield exports.deleteRelease(kit, release.id);
+    console.log(`release "${release.name}" is removed! `);
+    yield exports.deleteTagRef(kit, code);
+    console.log(`tag ref "tags/${code}" is removed! `);
+});
+exports.deleteReleaseIfExists = deleteReleaseIfExists;
+const createRelease = (kit, options) => __awaiter(void 0, void 0, void 0, function* () {
+    const { name, code, body, prerelease } = options;
+    let res = yield kit.repos.createRelease(Object.assign(Object.assign({}, github.context.repo), { tag_name: code, target_commitish: github.context.sha, name,
+        body, draft: false, prerelease }));
+    return res.data;
+});
+exports.createRelease = createRelease;
+const uploadReleaseAsset = (kit, options) => __awaiter(void 0, void 0, void 0, function* () {
+    const { source, url, target, mineType } = options;
+    const data = fs_1.default.readFileSync(source);
+    let payload = {
+        url,
+        headers: {
+            'content-type': mineType,
+            'content-length': data.length
+        },
+        name: target,
+        data: data
+    };
+    let res = yield kit.repos.uploadReleaseAsset(payload);
+    return res.data;
+});
+exports.uploadReleaseAsset = uploadReleaseAsset;
 
 
 /***/ }),
